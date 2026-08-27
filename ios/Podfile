@@ -1,0 +1,24 @@
+platform :ios, '16.0'
+prepare_react_native_project!
+
+target 'Talky' do
+  use_react_native!(
+    :path => config[:reactNativePath],
+    :hermes_enabled => true
+  )
+
+  # Explicit pod link for Agora RTC Voice SDK
+  pod 'react-native-agora', :path => '../node_modules/react-native-agora'
+
+  target 'TalkyTests' do
+    inherit! :complete
+  end
+
+  post_install do |installer|
+    react_native_post_install(
+      installer,
+      config[:reactNativePath],
+      :mac_catalyst_enabled => false
+    )
+  end
+end
