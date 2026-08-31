@@ -10,6 +10,8 @@ interface PTTStoreState {
   peerIsOnline: boolean;
   peerLastSeenAt: string | null;
   activeSessionId: string | null;
+  networkQuality: "EXCELLENT" | "POOR_ADAPTIVE" | "CRITICAL_OFFLINE";
+  queuedCount: number;
 
   setPTTState: (state: PTTState) => void;
   startTransmitting: (sessionId?: string) => void;
@@ -17,6 +19,8 @@ interface PTTStoreState {
   cancelTransmitting: () => void;
   setRemoteSpeaking: (speakerName: string | null, isSpeaking: boolean) => void;
   setPeerPresence: (isOnline: boolean, lastSeenAt?: string) => void;
+  setNetworkQuality: (quality: "EXCELLENT" | "POOR_ADAPTIVE" | "CRITICAL_OFFLINE") => void;
+  setQueuedCount: (count: number) => void;
   incrementDuration: () => void;
   resetDuration: () => void;
 }
@@ -30,6 +34,8 @@ export const usePTTStore = create<PTTStoreState>((set) => ({
   peerIsOnline: false,
   peerLastSeenAt: null,
   activeSessionId: null,
+  networkQuality: "EXCELLENT",
+  queuedCount: 0,
 
   setPTTState: (state: PTTState) => set({ pttState: state }),
 
@@ -69,6 +75,11 @@ export const usePTTStore = create<PTTStoreState>((set) => ({
       peerIsOnline: isOnline,
       peerLastSeenAt: lastSeenAt || null,
     }),
+
+  setNetworkQuality: (quality: "EXCELLENT" | "POOR_ADAPTIVE" | "CRITICAL_OFFLINE") =>
+    set({ networkQuality: quality }),
+
+  setQueuedCount: (count: number) => set({ queuedCount: count }),
 
   incrementDuration: () =>
     set((state) => ({

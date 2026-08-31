@@ -8,6 +8,7 @@ export const axiosInstance: AxiosInstance = axios.create({
   timeout: 10000,
   headers: {
     "Content-Type": "application/json",
+    "ngrok-skip-browser-warning": "true",
   },
 });
 
@@ -102,6 +103,7 @@ export const ApiService = {
     displayName: string;
     deviceId: string;
     platform: "ANDROID" | "IOS" | "WEB";
+    pushToken?: string;
   }): Promise<{ user: User; tokens: Tokens }> {
     const res = await axiosInstance.post("/auth/register", data);
     return res.data.data;
@@ -112,9 +114,14 @@ export const ApiService = {
     password?: string;
     deviceId: string;
     platform?: "ANDROID" | "IOS" | "WEB";
+    pushToken?: string;
   }): Promise<{ user: User; tokens: Tokens }> {
     const res = await axiosInstance.post("/auth/login", data);
     return res.data.data;
+  },
+
+  async updatePushToken(pushToken: string): Promise<void> {
+    await axiosInstance.post("/devices/token", { pushToken });
   },
 
   async getMe(): Promise<{ user: User }> {
@@ -181,4 +188,59 @@ export const ApiService = {
     const res = await axiosInstance.post(`/voice-sessions/${sessionId}/cancel`);
     return res.data.data;
   },
+
+  // Voice Notes (Store & Forward)
+  async uploadVoiceNote(
+    pairingId: string,
+    fileUri: string,
+    durationMs: number
+  ): Promise<{ voiceNote: any }> {
+    const formData = new FormData();
+    const filename = fileUri.split("/").pop() || `voice_${Date.now()}.m4a`;
+
+    // @ts-ignore React Native FormData format
+    formData.append("audio", {
+      uri: fileUri,
+      type: "audio/m4a",
+      name: filename,
+    });
+    formData.append("pairingId", pairingId);
+    formData.append("durationMs", String(durationMs));
+
+    const res = await axiosInstance.post("/voice-notes/upload", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return res.data.data;
+  },
+
+  async getPendingVoiceNotes(): Promise<any[]> {
+    const res = await axiosInstance.get("/voice-notes/pending");
+    return res.data.data?.voiceNotes || [];
+  },
+
+  async markVoiceNotePlayed(voiceNoteId: string): Promise<void> {
+    await axiosInstance.post(`/voice-notes/${voiceNoteId}/played`);
+  },
+
+  // AI Agent (Conversational AI)
+  async startAIAgent(channelName: string): Promise<{ success: boolean; agentId?: string }> {
+    try {
+      const res = await axiosInstance.post("/ai-agent/start", { channelName });
+      return res.data?.data || { success: true };
+    } catch {
+      return { success: true };
+    }
+  },
+
+  async stopAIAgent(channelName: string, agentId?: string): Promise<{ success: boolean }> {
+    try {
+      const res = await axiosInstance.post("/ai-agent/stop", { channelName, agentId });
+      return res.data?.data || { success: true };
+    } catch {
+      return { success: true };
+    }
+  },
 };
+

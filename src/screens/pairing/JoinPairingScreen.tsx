@@ -24,7 +24,8 @@ interface Props {
 
 export const JoinPairingScreen: React.FC<Props> = ({ navigation }) => {
   const [code, setCode] = useState("");
-  const { joinPairing, isLoading, error } = usePairingStore();
+  const [isJoining, setIsJoining] = useState(false);
+  const { joinPairing, error } = usePairingStore();
 
   const handleJoin = async () => {
     if (code.trim().length < 6) {
@@ -33,10 +34,13 @@ export const JoinPairingScreen: React.FC<Props> = ({ navigation }) => {
     }
 
     try {
+      setIsJoining(true);
       await joinPairing(code.trim());
       navigation.navigate("PairingSuccess");
-    } catch {
-      // Handled by store
+    } catch (err: any) {
+      Alert.alert("Pairing Error", err?.message || "Failed to join pairing.");
+    } finally {
+      setIsJoining(false);
     }
   };
 
@@ -77,8 +81,8 @@ export const JoinPairingScreen: React.FC<Props> = ({ navigation }) => {
             <Button
               title="Pair Devices"
               onPress={handleJoin}
-              loading={isLoading}
-              disabled={code.trim().length < 4}
+              loading={isJoining}
+              disabled={code.trim().length < 4 || isJoining}
               style={styles.joinBtn}
             />
           </View>

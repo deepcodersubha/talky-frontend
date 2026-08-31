@@ -24,15 +24,14 @@ export const usePairingStore = create<PairingState>((set, get) => ({
 
   fetchCurrentPairing: async () => {
     try {
-      set({ isLoading: true, error: null });
       const res = await ApiService.getCurrentPairing();
       set({
         hasActivePairing: res.hasActivePairing,
         pairing: res.pairing,
-        isLoading: false,
+        error: null,
       });
     } catch {
-      set({ hasActivePairing: false, pairing: null, isLoading: false });
+      set({ hasActivePairing: false, pairing: null });
     }
   },
 
@@ -42,11 +41,12 @@ export const usePairingStore = create<PairingState>((set, get) => ({
       const res = await ApiService.generatePairingCode();
       set({ isLoading: false });
       return res;
-    } catch (err: unknown) {
+    } catch (err: any) {
       const errorMsg =
-        err && typeof err === "object" && "response" in err
-          ? (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message || "Failed to generate code"
-          : "Failed to generate code";
+        err?.response?.data?.error?.message ||
+        err?.response?.data?.message ||
+        err?.message ||
+        "Failed to generate code";
       set({ error: errorMsg, isLoading: false });
       throw new Error(errorMsg);
     }
@@ -61,11 +61,12 @@ export const usePairingStore = create<PairingState>((set, get) => ({
         hasActivePairing: true,
         isLoading: false,
       });
-    } catch (err: unknown) {
+    } catch (err: any) {
       const errorMsg =
-        err && typeof err === "object" && "response" in err
-          ? (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message || "Failed to join pairing"
-          : "Failed to join pairing";
+        err?.response?.data?.error?.message ||
+        err?.response?.data?.message ||
+        err?.message ||
+        "Failed to join pairing";
       set({ error: errorMsg, isLoading: false });
       throw new Error(errorMsg);
     }
@@ -79,11 +80,12 @@ export const usePairingStore = create<PairingState>((set, get) => ({
       set({ isLoading: true, error: null });
       await ApiService.unpair(pairing.id);
       set({ pairing: null, hasActivePairing: false, isLoading: false });
-    } catch (err: unknown) {
+    } catch (err: any) {
       const errorMsg =
-        err && typeof err === "object" && "response" in err
-          ? (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message || "Failed to unpair"
-          : "Failed to unpair";
+        err?.response?.data?.error?.message ||
+        err?.response?.data?.message ||
+        err?.message ||
+        "Failed to unpair";
       set({ error: errorMsg, isLoading: false });
       throw new Error(errorMsg);
     }
@@ -101,11 +103,12 @@ export const usePairingStore = create<PairingState>((set, get) => ({
           isSilenced: silenced,
         },
       });
-    } catch (err: unknown) {
+    } catch (err: any) {
       const errorMsg =
-        err && typeof err === "object" && "response" in err
-          ? (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message || "Failed to toggle silence"
-          : "Failed to toggle silence";
+        err?.response?.data?.error?.message ||
+        err?.response?.data?.message ||
+        err?.message ||
+        "Failed to toggle silence";
       set({ error: errorMsg });
     }
   },

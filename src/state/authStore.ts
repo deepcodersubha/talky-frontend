@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { ApiService } from "../api/client";
 import { StorageService } from "../storage/secureStorage";
+import { AndroidBridge } from "../services/native/AndroidBridge";
 import { User } from "../types";
 import { Platform } from "react-native";
 
@@ -33,6 +34,16 @@ export const useAuthStore = create<AuthState>((set) => ({
 
       const { user } = await ApiService.getMe();
       set({ user, isAuthenticated: true, isLoading: false });
+
+      // Sync latest FCM push token in background
+      try {
+        const pushToken = await AndroidBridge.getFCMToken();
+        if (pushToken) {
+          await ApiService.updatePushToken(pushToken);
+        }
+      } catch {
+        // Non-critical token sync error
+      }
     } catch {
       await StorageService.clearTokens();
       set({ user: null, isAuthenticated: false, isLoading: false });
@@ -44,6 +55,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ isLoading: true, error: null });
       const deviceId = await StorageService.getOrCreateDeviceId();
       const platform = Platform.OS === "ios" ? "IOS" : Platform.OS === "android" ? "ANDROID" : "WEB";
+      const pushToken = (await AndroidBridge.getFCMToken()) || undefined;
 
       const { user, tokens } = await ApiService.register({
         authIdentifier,
@@ -51,15 +63,17 @@ export const useAuthStore = create<AuthState>((set) => ({
         password,
         deviceId,
         platform,
+        pushToken,
       });
 
       await StorageService.saveTokens(tokens.accessToken, tokens.refreshToken);
       set({ user, isAuthenticated: true, isLoading: false });
-    } catch (err: unknown) {
+    } catch (err: any) {
       const errorMsg =
-        err && typeof err === "object" && "response" in err
-          ? (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message || "Registration failed"
-          : "Registration failed";
+        err?.response?.data?.error?.message ||
+        err?.response?.data?.message ||
+        err?.message ||
+        "Registration failed";
       set({ error: errorMsg, isLoading: false });
       throw new Error(errorMsg);
     }
@@ -70,21 +84,24 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ isLoading: true, error: null });
       const deviceId = await StorageService.getOrCreateDeviceId();
       const platform = Platform.OS === "ios" ? "IOS" : Platform.OS === "android" ? "ANDROID" : "WEB";
+      const pushToken = (await AndroidBridge.getFCMToken()) || undefined;
 
       const { user, tokens } = await ApiService.login({
         authIdentifier,
         password,
         deviceId,
         platform,
+        pushToken,
       });
 
       await StorageService.saveTokens(tokens.accessToken, tokens.refreshToken);
       set({ user, isAuthenticated: true, isLoading: false });
-    } catch (err: unknown) {
+    } catch (err: any) {
       const errorMsg =
-        err && typeof err === "object" && "response" in err
-          ? (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message || "Login failed"
-          : "Login failed";
+        err?.response?.data?.error?.message ||
+        err?.response?.data?.message ||
+        err?.message ||
+        "Login failed";
       set({ error: errorMsg, isLoading: false });
       throw new Error(errorMsg);
     }

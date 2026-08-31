@@ -1,11 +1,13 @@
 import { Platform } from "react-native";
 
-// Ngrok public tunnel — allows any remote device to reach the local backend.
-// Replace this URL with a new ngrok URL if the tunnel is restarted.
-const NGROK_URL = "https://greedless-polygon-cattail.ngrok-free.dev";
+// Backend URL:
+// Using local machine LAN IP so physical devices on Wi-Fi and Android emulator can connect.
+const BACKEND_URL = "https://talky-backend-f36p.onrender.com";
 
-export const API_BASE_URL = `${NGROK_URL}/api/v1`;
-export const WS_BASE_URL = `${NGROK_URL.replace("https://", "wss://")}/ws`;
+export const API_BASE_URL = `${BACKEND_URL}/api/v1`;
+export const WS_BASE_URL = `${BACKEND_URL.replace(/^http/, "ws")}/ws`;
+export const AGORA_APP_ID = "56b8a62c5cc14ce0b8067561d12233a7";
+
 
 export const MAX_TRANSMISSION_DURATION_SECONDS = 60;
 export const HEARTBEAT_INTERVAL_MS = 25000;

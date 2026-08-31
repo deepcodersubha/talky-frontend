@@ -46,4 +46,14 @@ export class AndroidBridge {
       return false;
     }
   }
+
+  static async getFCMToken(): Promise<string | null> {
+    if (!this.isAvailable()) return null;
+    try {
+      return await TalkyNativeBridge.getFCMToken();
+    } catch (err) {
+      console.warn("Failed to retrieve FCM push token:", err);
+      return null;
+    }
+  }
 }

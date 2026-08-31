@@ -14,6 +14,7 @@ import { useAuthStore } from "../../state/authStore";
 import { usePairingStore } from "../../state/pairingStore";
 import { AgoraVoiceEngine } from "../../services/audio/AgoraVoiceEngine";
 import { WebSocketClient } from "../../services/websocket/WebSocketClient";
+import { AndroidBridge } from "../../services/native/AndroidBridge";
 import {
   User,
   Volume2,
@@ -22,7 +23,9 @@ import {
   LogOut,
   ChevronRight,
   Info,
+  Sparkles,
 } from "lucide-react-native";
+
 
 interface Props {
   navigation: {
@@ -46,6 +49,7 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
   const handleLogout = async () => {
     AgoraVoiceEngine.getInstance().leaveChannel();
     WebSocketClient.getInstance().disconnect();
+    AndroidBridge.stopForegroundService();
     await logout();
   };
 
@@ -101,8 +105,27 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
+        {/* Section: AI Assistant */}
+        <Text style={styles.sectionHeader}>CONVERSATIONAL AI</Text>
+        <View style={styles.card}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => navigation.navigate("AIAssistant")}
+          >
+            <View style={styles.rowLeft}>
+              <Sparkles size={20} color={THEME.colors.primary} style={styles.rowIcon} />
+              <View>
+                <Text style={styles.rowTitle}>Talk to AI Assistant</Text>
+                <Text style={styles.rowSubtitle}>Real-time interactive voice conversation</Text>
+              </View>
+            </View>
+            <ChevronRight size={18} color={THEME.colors.textMuted} />
+          </TouchableOpacity>
+        </View>
+
         {/* Section: Connection Info */}
         <Text style={styles.sectionHeader}>ABOUT TALKY</Text>
+
         <View style={styles.card}>
           <View style={styles.row}>
             <View style={styles.rowLeft}>

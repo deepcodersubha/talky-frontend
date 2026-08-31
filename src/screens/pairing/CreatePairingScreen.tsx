@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { THEME } from "../../config/constants";
@@ -23,15 +24,19 @@ interface Props {
 export const CreatePairingScreen: React.FC<Props> = ({ navigation }) => {
   const [code, setCode] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState<number>(600);
-  const { createPairingCode, isLoading, hasActivePairing, fetchCurrentPairing } = usePairingStore();
+  const [isGenerating, setIsGenerating] = useState(false);
+  const { createPairingCode, hasActivePairing, fetchCurrentPairing } = usePairingStore();
 
   const handleGenerate = async () => {
     try {
+      setIsGenerating(true);
       const res = await createPairingCode();
       setCode(res.code);
       setTimeLeft(res.expiresInSeconds);
-    } catch {
-      // Handled
+    } catch (err: any) {
+      Alert.alert("Pairing Error", err?.message || "Failed to generate pairing code.");
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -55,12 +60,11 @@ export const CreatePairingScreen: React.FC<Props> = ({ navigation }) => {
 
   // Countdown timer
   useEffect(() => {
-    if (timeLeft <= 0) return;
     const timer = setInterval(() => {
-      setTimeLeft((prev) => prev - 1);
+      setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
     return () => clearInterval(timer);
-  }, [timeLeft]);
+  }, []);
 
   const formatTimer = (secs: number) => {
     const m = Math.floor(secs / 60);
@@ -82,7 +86,7 @@ export const CreatePairingScreen: React.FC<Props> = ({ navigation }) => {
             Give this 6-character code to your friend to pair permanently.
           </Text>
 
-          {isLoading && !code ? (
+          {isGenerating && !code ? (
             <ActivityIndicator size="large" color={THEME.colors.primary} style={styles.loader} />
           ) : (
             <>
@@ -114,7 +118,7 @@ export const CreatePairingScreen: React.FC<Props> = ({ navigation }) => {
             title="Generate New Code"
             variant="outline"
             onPress={handleGenerate}
-            loading={isLoading}
+            loading={isGenerating}
             icon={<RefreshCw size={18} color={THEME.colors.primary} />}
             style={styles.refreshBtn}
           />

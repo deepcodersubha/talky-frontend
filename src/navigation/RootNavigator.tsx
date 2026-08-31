@@ -12,8 +12,10 @@ import { PairingSuccessScreen } from "../screens/pairing/PairingSuccessScreen";
 import { MainPTTScreen } from "../screens/ptt/MainPTTScreen";
 import { SettingsScreen } from "../screens/settings/SettingsScreen";
 import { AudioSettingsScreen } from "../screens/settings/AudioSettingsScreen";
+import { AIAssistantScreen } from "../screens/ai/AIAssistantScreen";
 
 const Stack = createNativeStackNavigator();
+
 
 export const RootNavigator: React.FC = () => {
   const { isAuthenticated, isLoading: authLoading, initAuth } = useAuthStore();
@@ -69,8 +71,10 @@ export const RootNavigator: React.FC = () => {
             <Stack.Screen name="PairingSuccess" component={PairingSuccessScreen} />
             <Stack.Screen name="Settings" component={SettingsScreen} />
             <Stack.Screen name="AudioSettings" component={AudioSettingsScreen} />
+            <Stack.Screen name="AIAssistant" component={AIAssistantScreen} />
           </>
         )}
+
       </Stack.Navigator>
     </NavigationContainer>
   );

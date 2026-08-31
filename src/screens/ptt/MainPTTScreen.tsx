@@ -21,7 +21,11 @@ import { AgoraVoiceEngine } from "../../services/audio/AgoraVoiceEngine";
 import { AndroidBridge } from "../../services/native/AndroidBridge";
 import { IOSBridge } from "../../services/native/IOSBridge";
 import { ApiService } from "../../api/client";
-import { Settings, VolumeX, Volume2, UserPlus, LogOut } from "lucide-react-native";
+import { NetworkQualityPill } from "../../components/common/NetworkQualityPill";
+import { AudioCueService } from "../../services/audio/AudioCueService";
+import { OfflineVoiceQueue } from "../../services/audio/OfflineVoiceQueue";
+import { PermissionService } from "../../services/native/PermissionService";
+import { Settings, VolumeX, Volume2, UserPlus, LogOut, Sparkles } from "lucide-react-native";
 
 interface Props {
   navigation: {
@@ -39,6 +43,7 @@ export const MainPTTScreen: React.FC<Props> = ({ navigation }) => {
     transmissionDuration,
     peerIsOnline,
     activeSessionId,
+    networkQuality,
     startTransmitting,
     stopTransmitting,
     cancelTransmitting,
@@ -49,22 +54,33 @@ export const MainPTTScreen: React.FC<Props> = ({ navigation }) => {
   const [showSilenceModal, setShowSilenceModal] = useState(false);
   const durationTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Initialize WebSockets and Agora audio channel on mount
+  // Initialize WebSockets, Agora audio channel, and offline queue sync on mount
   useEffect(() => {
     fetchCurrentPairing();
     const ws = WebSocketClient.getInstance();
     ws.connect();
 
     if (pairing) {
-      ws.subscribePairing(pairing.id);
-      AgoraVoiceEngine.getInstance().joinPairingChannel(pairing.id);
-      AgoraVoiceEngine.getInstance().setSilence(pairing.isSilenced);
-      AndroidBridge.startForegroundService();
-      IOSBridge.joinPTTChannel(pairing.id, pairing.agoraChannelName, pairing.peer.displayName);
+      const initVoice = async () => {
+        try {
+          await PermissionService.requestAllPermissions();
+          ws.subscribePairing(pairing.id);
+          await AgoraVoiceEngine.getInstance().joinPairingChannel(pairing.id);
+          AgoraVoiceEngine.getInstance().setSilence(pairing.isSilenced);
+          await AndroidBridge.startForegroundService();
+          await AndroidBridge.requestIgnoreBatteryOptimizations();
+          IOSBridge.joinPTTChannel(pairing.id, pairing.agoraChannelName, pairing.peer.displayName);
+          OfflineVoiceQueue.startQueueSync();
+        } catch (err) {
+          console.warn("MainPTTScreen voice init error:", err);
+        }
+      };
+      initVoice();
     }
 
     return () => {
       if (durationTimer.current) clearInterval(durationTimer.current);
+      OfflineVoiceQueue.stopQueueSync();
     };
   }, [pairing?.id]);
 
@@ -97,15 +113,21 @@ export const MainPTTScreen: React.FC<Props> = ({ navigation }) => {
   const handleStartTransmit = async () => {
     if (!pairing || isRemoteSpeaking) return;
 
-    // 1. Unmute microphone immediately for instant, low-latency live voice transmission
+    // 1. Play walkie talkie radio key-up chirp
+    AudioCueService.playPTTStart();
+
+    // 2. Start offline recording backup simultaneously
+    OfflineVoiceQueue.startRecording();
+
+    // 3. Unmute microphone immediately for instant live voice transmission
     AgoraVoiceEngine.getInstance().startTransmitting();
     startTransmitting();
 
     try {
-      // 2. Notify remote peer over WebSocket
+      // 4. Notify remote peer over WebSocket
       WebSocketClient.getInstance().sendPTTStarted(pairing.id);
 
-      // 3. Register session in background
+      // 5. Register session in background
       ApiService.startVoiceSession(pairing.id)
         .then((res) => {
           if (res?.session?.id) {
@@ -123,13 +145,20 @@ export const MainPTTScreen: React.FC<Props> = ({ navigation }) => {
   const handleStopTransmit = async () => {
     if (!isTransmitting || !pairing) return;
 
-    // 1. Mute microphone immediately
+    // 1. Play walkie talkie Roger Beep
+    AudioCueService.playRogerBeep();
+
+    // 2. Stop offline recording backup — if network degraded/offline, auto-queue for store-and-forward
+    const shouldQueue = networkQuality === "CRITICAL_OFFLINE" || !peerIsOnline;
+    OfflineVoiceQueue.stopRecording(pairing.id, shouldQueue);
+
+    // 3. Mute microphone immediately
     AgoraVoiceEngine.getInstance().stopTransmitting();
     const sessionId = activeSessionId;
     stopTransmitting();
 
     if (pairing) {
-      // 2. Send stopped event over WebSocket & HTTP
+      // 4. Send stopped event over WebSocket & HTTP
       WebSocketClient.getInstance().sendPTTStopped(pairing.id, sessionId || "session_ended");
       if (sessionId) {
         ApiService.stopVoiceSession(sessionId).catch((err) => {
@@ -162,6 +191,7 @@ export const MainPTTScreen: React.FC<Props> = ({ navigation }) => {
     setShowUnpairModal(false);
     await unpair();
     AgoraVoiceEngine.getInstance().leaveChannel();
+    AndroidBridge.stopForegroundService();
   };
 
   // If unpaired, show prompt to pair
@@ -181,6 +211,25 @@ export const MainPTTScreen: React.FC<Props> = ({ navigation }) => {
             onPress={() => navigation.navigate("CreatePairing")}
             style={styles.pairNowBtn}
           />
+
+          {/* AI Voice Assistant Quick Access */}
+          <View style={styles.aiPromoCard}>
+            <View style={styles.aiPromoHeader}>
+              <Sparkles size={18} color={THEME.colors.primary} />
+              <Text style={styles.aiPromoTitle}>Talky AI Assistant</Text>
+            </View>
+            <Text style={styles.aiPromoSubtitle}>
+              Experience real-time interactive voice chat with the AI assistant.
+            </Text>
+            <TouchableOpacity
+              onPress={() => navigation.navigate("AIAssistant")}
+              style={styles.aiPromoBtn}
+              activeOpacity={0.8}
+            >
+              <Sparkles size={16} color="#080B11" />
+              <Text style={styles.aiPromoBtnText}>Talk to AI Assistant</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -194,9 +243,18 @@ export const MainPTTScreen: React.FC<Props> = ({ navigation }) => {
           <View>
             <Text style={styles.peerLabel}>CONNECTED TO</Text>
             <Text style={styles.peerName}>{pairing.peer.displayName}</Text>
+            <NetworkQualityPill />
           </View>
 
           <View style={styles.headerRight}>
+            <TouchableOpacity
+              onPress={() => navigation.navigate("AIAssistant")}
+              style={styles.aiHeaderBtn}
+              activeOpacity={0.8}
+            >
+              <Sparkles size={15} color={THEME.colors.primary} />
+              <Text style={styles.aiHeaderBtnText}>Talk to AI</Text>
+            </TouchableOpacity>
             <StatusPill isOnline={peerIsOnline} />
             <TouchableOpacity
               onPress={() => navigation.navigate("Settings")}
@@ -206,6 +264,7 @@ export const MainPTTScreen: React.FC<Props> = ({ navigation }) => {
             </TouchableOpacity>
           </View>
         </View>
+
 
         {/* Remote Speaker Alert */}
         <View style={styles.middleContainer}>
@@ -452,4 +511,62 @@ const styles = StyleSheet.create({
     flex: 1,
     marginHorizontal: 4,
   },
+  aiHeaderBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 229, 255, 0.12)",
+    borderColor: "rgba(0, 229, 255, 0.35)",
+    borderWidth: 1,
+    borderRadius: THEME.borderRadius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginRight: THEME.spacing.sm,
+    gap: 4,
+  },
+  aiHeaderBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: THEME.colors.primary,
+  },
+  aiPromoCard: {
+    width: "100%",
+    backgroundColor: THEME.colors.surface,
+    borderColor: "rgba(0, 229, 255, 0.25)",
+    borderWidth: 1,
+    borderRadius: THEME.borderRadius.lg,
+    padding: THEME.spacing.md,
+    marginTop: THEME.spacing.xl,
+  },
+  aiPromoHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 6,
+  },
+  aiPromoTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: THEME.colors.text,
+  },
+  aiPromoSubtitle: {
+    fontSize: 12,
+    color: THEME.colors.textMuted,
+    lineHeight: 17,
+    marginBottom: THEME.spacing.md,
+  },
+  aiPromoBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: THEME.colors.primary,
+    borderRadius: THEME.borderRadius.md,
+    paddingVertical: 10,
+    gap: 6,
+  },
+  aiPromoBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#080B11",
+  },
 });
+
